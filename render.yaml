@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: styleforge-ai
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python download_models.py && gunicorn --chdir NST_Code app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: VGG_MODEL_URL
+        sync: false
+      - key: DECODER_MODEL_URL
+        sync: false

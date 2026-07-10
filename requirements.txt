@@ -9,3 +9,4 @@ tqdm==4.66.4
 Werkzeug==2.2.3
 WTForms==3.2.1
 gunicorn
+gdown==5.2.0

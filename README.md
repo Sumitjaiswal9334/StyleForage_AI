@@ -164,6 +164,28 @@ http://localhost:5000
 
 ---
 
+# Deploy On Render
+
+This project does not commit large model files to GitHub. For Render deployment, upload these two local files to a public downloadable location such as Google Drive, Hugging Face, or GitHub Releases:
+
+- `NST_Code/vgg_normalised.pth`
+- `NST_Code/experiment/final_exp/decoder_final.pth`
+
+In Render, create a Web Service or use the included `render.yaml` blueprint, then add these environment variables:
+
+```text
+VGG_MODEL_URL=<public download URL for vgg_normalised.pth>
+DECODER_MODEL_URL=<public download URL for decoder_final.pth>
+```
+
+Render start command:
+
+```bash
+python download_models.py && gunicorn --chdir NST_Code app:app
+```
+
+---
+
 # 🎯 How It Works
 
 ### Step 1
