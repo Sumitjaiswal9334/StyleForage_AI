@@ -982,11 +982,13 @@
     </div>
     {% endif %}
 
-    {% if error %}
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
         <div class="alert alert-danger mt-4 text-center" role="alert" style="background: rgba(220, 38, 38, 0.2); border-color: #dc2626; color: #fecaca;">
-            <strong>Error:</strong> {{ error }}
+            <strong>Error:</strong> {{ messages[0] }}
         </div>
     {% endif %}
+    {% endwith %}
 </div>
 
 <section class="container examples-section fade-in-up" id="examplesSection">

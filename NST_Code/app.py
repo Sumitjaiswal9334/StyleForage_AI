@@ -1,6 +1,6 @@
 import os
 import torch
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash
 from flask_wtf import FlaskForm
 from flask_bootstrap import Bootstrap
 from werkzeug.utils import secure_filename
@@ -124,12 +124,17 @@ def index():
                 
                 result_image = result_filename
             except Exception as e:
-                error = str(e)
-    else:
-        if not content_filename:
-            error = 'Please upload content image'
-        if not style_filename:
-            error = 'Please upload style image'
+                flash(str(e))
+                return redirect(url_for('index'))
+        else:
+            if not content_filename:
+                flash('Please upload content image')
+            elif not style_filename:
+                flash('Please upload style image')
+            return redirect(url_for('index'))
+    elif request.method == 'POST':
+        flash('Please upload content and style images')
+        return redirect(url_for('index'))
 
     return render_template('index.html', form=form, result_image=result_image, content_image=content_filename,
                            style_image=style_filename, error=error)
@@ -148,8 +153,6 @@ def send_example(filename):
 if __name__ == '__main__':
     from werkzeug.serving import run_simple
     run_simple('localhost', 5000, app, use_reloader=True, use_debugger=True)
-
-
 
 
 
