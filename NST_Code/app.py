@@ -113,7 +113,7 @@ def allowed_file(filename):
 
 def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
 
-    IMAGE_SIZE = 256
+    IMAGE_SIZE = 128
 
     transform = transforms.Compose([
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
