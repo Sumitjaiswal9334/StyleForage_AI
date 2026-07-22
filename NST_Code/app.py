@@ -9,6 +9,8 @@ from wtforms.validators import InputRequired
 from PIL import Image
 from torchvision import transforms
 import io
+import gc
+import time
 
 # Import your existing AdaIN code
 from utils.models import VGGEncoder, Decoder
@@ -33,52 +35,126 @@ class UploadForm(FlaskForm):
     alpha = FloatField('Alpha', default=1.0)
     submit = SubmitField('Transfer Style')
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-encoder = VGGEncoder(os.path.join(BASE_DIR, 'vgg_normalised.pth')).to(device)
-decoder = Decoder().to(device)
-decoder_path = os.path.join(BASE_DIR, 'experiment', 'final_exp', 'decoder_final.pth')
-decoder.load_state_dict(torch.load(decoder_path, map_location=device))
+# encoder = VGGEncoder(os.path.join(BASE_DIR, 'vgg_normalised.pth')).to(device)
+# decoder = Decoder().to(device)
+# decoder_path = os.path.join(BASE_DIR, 'experiment', 'final_exp', 'decoder_final.pth')
+# decoder.load_state_dict(torch.load(decoder_path, map_location=device))
 
-encoder.eval()
-decoder.eval()
+# encoder.eval()
+# decoder.eval()
+
+# Render Free deployment ke liye CPU use karo
+device = torch.device("cpu")
+
+encoder = None
+decoder = None
+
+decoder_path = os.path.join(
+    BASE_DIR,
+    "experiment",
+    "final_exp",
+    "decoder_final.pth"
+)
+
+def load_models():
+    global encoder, decoder
+
+    if encoder is None:
+        print("Loading models...")
+
+        encoder = VGGEncoder(
+            os.path.join(BASE_DIR, "vgg_normalised.pth")
+        ).to(device)
+
+        decoder = Decoder().to(device)
+
+        decoder.load_state_dict(
+            torch.load(
+                decoder_path,
+                map_location=device
+            )
+        )
+
+        encoder.eval()
+        decoder.eval()
+
+        print("✅ Models Loaded")
 
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
+# def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
+#     content_transform = transforms.Compose([
+#         transforms.Resize(512),
+#         transforms.ToTensor()
+#     ])
+
+#     style_transform = transforms.Compose([
+#         transforms.Resize(512),
+#         transforms.ToTensor()
+#     ])
+#     content_image = content_transform(content_image).unsqueeze(0).to(device)
+#     style_image = style_transform(style_image).unsqueeze(0).to(device)
+
+#     with torch.no_grad():
+#         content_feats = encoder(content_image, is_test=True)
+#         style_feats = encoder(style_image, is_test=True)
+
+#         stylized_feats = adaptive_instance_normalization(content_feats, style_feats)
+
+#         stylized_feats = alpha * stylized_feats + (1 - alpha) * content_feats
+
+#         stylized_image = decoder(stylized_feats)
+
+#     return stylized_image
+
 def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
-    content_transform = transforms.Compose([
-        transforms.Resize(512),
+
+    IMAGE_SIZE = 256
+
+    transform = transforms.Compose([
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.ToTensor()
     ])
 
-    style_transform = transforms.Compose([
-        transforms.Resize(512),
-        transforms.ToTensor()
-    ])
-    content_image = content_transform(content_image).unsqueeze(0).to(device)
-    style_image = style_transform(style_image).unsqueeze(0).to(device)
+    content_image = transform(content_image).unsqueeze(0).to(device)
+    style_image = transform(style_image).unsqueeze(0).to(device)
 
-    with torch.no_grad():
+    with torch.inference_mode():
+
         content_feats = encoder(content_image, is_test=True)
         style_feats = encoder(style_image, is_test=True)
 
-        stylized_feats = adaptive_instance_normalization(content_feats, style_feats)
+        stylized_feats = adaptive_instance_normalization(
+            content_feats,
+            style_feats
+        )
 
         stylized_feats = alpha * stylized_feats + (1 - alpha) * content_feats
 
-        stylized_image = decoder(stylized_feats)
+        output = decoder(stylized_feats)
 
-    return stylized_image
+    return output
 
+
+# def save_image(image, path):
+#     image = image.cpu().clone()
+#     image = image.squeeze(0)
+#     image = image.clamp(0, 1)
+#     image = transforms.ToPILImage()(image)
+#     image.save(path)
 
 def save_image(image, path):
-    image = image.cpu().clone()
+    image = image.detach().cpu()
     image = image.squeeze(0)
     image = image.clamp(0, 1)
-    image = transforms.ToPILImage()(image)
-    image.save(path)
+
+    img = transforms.ToPILImage()(image)
+    img.save(path)
+    img.close()
 
 
 
@@ -108,6 +184,7 @@ def index():
             style_filename = form.style_path.data
 
         if content_filename and style_filename:
+            load_models()
             content_path = os.path.join(app.config['UPLOAD_FOLDER'], content_filename)
             style_path = os.path.join(app.config['UPLOAD_FOLDER'], style_filename)
             
@@ -123,6 +200,13 @@ def index():
                 save_image(stylized_image, result_path)
                 
                 result_image = result_filename
+
+                content_image.close()
+                style_image.close()
+
+                del stylized_image
+                gc.collect()
+                
             except Exception as e:
                 flash(str(e))
                 return redirect(url_for('index'))
@@ -150,9 +234,13 @@ def send_example(filename):
     return send_from_directory(os.path.join(BASE_DIR, 'examples'), filename)
 
 
-if __name__ == '__main__':
-    from werkzeug.serving import run_simple
-    run_simple('localhost', 5000, app, use_reloader=True, use_debugger=True)
+# if __name__ == '__main__':
+#     from werkzeug.serving import run_simple
+#     run_simple('localhost', 5000, app, use_reloader=True, use_debugger=True)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
 
 
 
